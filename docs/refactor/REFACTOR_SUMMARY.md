@@ -29,7 +29,7 @@
 ## 验证摘要
 
 - `HOST_VERIFIED`：61 项特征断言通过。
-- `STATICALLY_REVIEWED`：90 项契约检查通过，35 个 Keil C 文件通过 ARM Compiler 6 语法检查。
+- `STATICALLY_REVIEWED`：103 项契约检查通过，35 个 Keil C 文件通过 ARM Compiler 6 语法检查。
 - 补充链接构建：当前 ROM 24,452 B / 64 KiB，RAM 3,128 B / 10 KiB；相同补充编译器相对基线 ROM +336 B、RAM +0 B。
 - ARMCC 5 构建：本机未安装所需编译器，退出 2，未达 `BUILD_VERIFIED`。
 - 硬件时序、测量精度和产品级验证：`HARDWARE_VALIDATION_PENDING`。

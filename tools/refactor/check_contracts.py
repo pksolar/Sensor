@@ -176,8 +176,17 @@ def check_layout_and_periods():
         "PERSISTENT_BACKUP_PAGE_INDEX": "30UL",
         "PERSISTENT_DATA_SIZE": "260U",
         "PERSISTENT_CHECK_OFFSET": "258U",
+        "PERSISTENT_ADDR_O2_POINTS": "0U",
+        "PERSISTENT_ADDR_FLOW_POINTS": "46U",
+        "PERSISTENT_ADDR_FLOW_ANCHORS": "60U",
+        "PERSISTENT_ADDR_SERIAL_NUMBER": "120U",
         "PERSISTENT_ADDR_SEND_ORDER": "130U",
+        "PERSISTENT_ADDR_WARN_VALUES": "131U",
         "PERSISTENT_ADDR_AUTO_SEND": "139U",
+        "PERSISTENT_ADDR_O2_K": "140U",
+        "PERSISTENT_ADDR_O2_B": "142U",
+        "PERSISTENT_ADDR_AIR_TEMP_POINTS": "150U",
+        "PERSISTENT_ADDR_N2_ANCHORS": "200U",
         "PERSISTENT_ADDR_BAUD_RATE": "255U",
     }
     for name, value in expected.items():
@@ -190,7 +199,32 @@ def check_layout_and_periods():
     protocol = (ROOT / "MyDriver/inc/RXExecute.h").read_text(encoding="utf-8")
     check(define_value(protocol, "ACK_RX").lower() == "0x16", "ACK byte changed")
     check(define_value(protocol, "NACK_RX").lower() == "0x06", "NACK byte changed")
+    check(define_value(protocol, "LengthError").lower() == "0x01", "length error code changed")
+    check(define_value(protocol, "NotCommand").lower() == "0x02", "unknown command code changed")
     check(define_value(protocol, "SENSOR_VERSION") == "YY", "sensor protocol variant changed")
+
+    main_body = extract_function((ROOT / "user/src/main.c").read_text(encoding="utf-8"), "main")
+    init_markers = [
+        "SystemInit();",
+        "SysTick_Config(",
+        "GpioConfig();",
+        "ReadEeprom(PERSISTENT_ADDR_BAUD_RATE)",
+        "UsartInit(",
+        "TIM16Delay_Init();",
+        "Adc_Init_NTC();",
+        "PwmInit();",
+        "CapInit();",
+        "FnRecover(&flash_data);",
+        "LQTP_GPIO_Init();",
+        "FnLinearization1();",
+        "FnLinearization(1);",
+        "sensor_value.temperature_NTC = test_tab();",
+        "AotuSetSendOrder(",
+        "IWDG_Init(4, 800);",
+    ]
+    positions = [main_body.find(marker) for marker in init_markers]
+    check(all(position >= 0 for position in positions), "initialization call missing")
+    check(positions == sorted(positions), "initialization order changed")
 
 
 def check_forbidden_features():

@@ -26,7 +26,7 @@
 ## 静态兼容契约
 
 - 命令：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/refactor/check_contracts.ps1`
-- 结果：`PASS: 90 static contract checks`。
+- 结果：`PASS: 103 static contract checks`。
 - 检查：26 个关键硬件函数源文本与基线相同；CMSIS/标准外设库无修改；MCU、IROM/IRAM、宏、工程成员、Flash 布局、SysTick 阈值、UART 常量不变；无动态内存和 RTOS。
 - 等级：`STATICALLY_REVIEWED`。
 
@@ -77,4 +77,4 @@
 ## 一键软件侧回归
 
 - 命令：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/refactor/run_validation.ps1`
-- 最终结果：61 特征断言、90 静态契约、35 源文件语法检查和 `git diff --check` 全部通过。
+- 最终结果：61 特征断言、103 静态契约、35 源文件语法检查和 `git diff --check` 全部通过。

@@ -51,12 +51,12 @@
 ## 阶段 8：硬件接口边界 — DONE
 
 - 现有 `gpio/adc/pwm/usart/cap/IIC` 作为 Board/Platform 边界，不改寄存器和中断时序体。
-- 90 项静态契约检查包含 26 个关键函数源文本、厂商目录、Keil 配置、Flash/UART/周期常量。
+- 103 项静态契约检查包含 26 个关键函数源文本、厂商目录、Keil 配置、初始化顺序、Flash/UART/周期常量。
 - 同一 ARM Compiler 6 补充构建下，26 个关键函数中 25 个机器码完全相同；`SysTick_Handler` 长度与控制流相同，只有 TU 私有字节偏移改变。
 
 ## 阶段 9：最终验证 — DONE_WITH_TOOLING_LIMIT
 
-- `run_validation.ps1`：61 主机断言、90 静态契约、35 个 Keil C 源文件 ARM Compiler 6 语法检查全部通过。
+- `run_validation.ps1`：61 主机断言、103 静态契约、35 个 Keil C 源文件 ARM Compiler 6 语法检查全部通过。
 - 同一 ARM Compiler 6 `-Oz` 补充构建比较：ROM +336 B，RAM +0 B，当前 ROM 24,452 B，RAM 3,128 B。
 - 最终 ARMCC 5 工程构建已重试，因本机未安装 Compiler 5 退出 2，未达 `BUILD_VERIFIED`。
 - 硬件验收全部保留在 `HARDWARE_VALIDATION_CHECKLIST.md`。
