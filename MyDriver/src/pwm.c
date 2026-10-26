@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <hk32f0xxa_tim.h>
 #include <hk32f0xxa_gpio.h>
+#include "measurement_core.h"
 
 static unsigned short TimerPeriod;
 
@@ -183,17 +184,7 @@ void SetPWM1Duty(unsigned short Duty)
 ***********************************************************************/	
 void PWMDAOutput(unsigned char tDACH,int tData)
 {
-	float tempfloat;
-	unsigned int SpanData;   //3.3v-1000   2.5v - 758
-	
-	SpanData = 764;
-	
-	if(tData>1000)   tData = 1000;
-	else if(tData<0) tData = 0;	
-	
-	tempfloat = tData;
-	
-	tData = (int) (tempfloat* SpanData /1000.0 +0.5);
+	tData = Measurement_MapPwmDuty(tData);
 	
 //	printf("AD:%d",tData);   //debug
 	if(tDACH == 0)

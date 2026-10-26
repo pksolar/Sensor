@@ -25,6 +25,11 @@ Scripts/build/
 Scripts/dist/
 Scripts/*.spec
 
+# Local host-test and syntax-check outputs
+tests/host/build/
+__pycache__/
+*.pyc
+
 # Keil / EIDE compile file
 *.uvopt
 *.uvoptx

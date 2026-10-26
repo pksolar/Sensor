@@ -2,6 +2,7 @@
 #include "ResultCount.h"
 #include "SubFun.h"
 #include "Linearization.h"
+#include "measurement_core.h"
 #include "math.h"
 
 /**
@@ -67,28 +68,7 @@ int KalmanFilter_Update(KalmanFilter *kf, int z)
 
 int nOrderBuffer_5(int *InOrderData)
 {
-	int tempint ;
-	int tnOrderData[5];
-	unsigned char ti,tj;
-
-	for(ti = 0;ti<5;ti++)
-	{
-		tnOrderData[ti]=InOrderData[ti];
-	}
-		
-	for(ti=0; ti<5; ti++)
-	{
-		for(tj=0; tj<4-ti; tj++)
-		{
-			if(tnOrderData[tj] > tnOrderData[tj+1])
-			{
-				tempint           = tnOrderData[tj  ];
-				tnOrderData[tj  ] = tnOrderData[tj+1];
-				tnOrderData[tj+1] = tempint;	
-			}
-		}	
-	}
-	return tnOrderData[2];
+	return Measurement_Median5(InOrderData);
 }
 
 //判断两点异常波动
@@ -109,139 +89,29 @@ static uint8_t IsAbnormalFluctuation(float tempvalue, float threadshold)
 // 排序，去掉FliterLen个最大值和FliterLen个最小值 然后取平均  FilterFloatDataTask
 float FilterFloatDataTask(float *Tab, unsigned short Len, unsigned short FliterLen)
 {
-    unsigned char i, j, m;
-    float Sum = 0;
-    float Temp = 0;
-    float Buffer[20];
-    unsigned short TempLen;
-
-    for (i = 0; i < Len; i++)
-    {
-        Buffer[i] = Tab[i];
-    }
-
-    // 选择排序法进行排序 由小到大的排序
-    for (i = 0; i < Len - 1; i++) // 循环的次数
-    {
-        m = i;
-        for (j = i + 1; j < Len; j++) // 找到最大的值
-        {
-            if (Buffer[j] > Buffer[m])
-                m = j;
-        }
-        if (i != m)
-        {
-            Temp = Buffer[i];
-            Buffer[i] = Buffer[m];
-            Buffer[m] = Temp;
-        }
-    }
-
-    // 去除一部分最大值和最小值 然后取平均
-    TempLen = Len - (FliterLen * 2);
-
-    Sum = 0;
-    for (i = FliterLen; i < Len - FliterLen; i++)
-    {
-        Sum += Buffer[i];
-    }
-    Sum /= TempLen;
-    return Sum;
+	return Measurement_TrimmedMeanFloat(Tab, Len, FliterLen);
 }
 
 // 排序，去掉FliterLen个最大值和FliterLen个最小值 然后取平均  FilterFloatDataTask
 int FilterIntDataTask(int *Tab, unsigned short Len, unsigned short FliterLen)
 {
-    unsigned char i, j, m;
-    int Sum = 0;
-    int Temp = 0;
-    int Buffer[Len];
-  //  unsigned short TempLen;
-
-    for (i = 0; i < Len; i++)
-    {
-        Buffer[i] = Tab[i];
-    }
-
-    // 选择排序法进行排序 由小到大的排序
-    for (i = 0; i < Len - 1; i++) // 循环的次数
-    {
-        m = i;
-        for (j = i + 1; j < Len; j++) // 找到最大的值
-        {
-            if (Buffer[j] > Buffer[m])
-                m = j;
-        }
-        if (i != m)
-        {
-            Temp = Buffer[i];
-            Buffer[i] = Buffer[m];
-            Buffer[m] = Temp;
-        }
-    }
-
-    // 去除一部分最大值和最小值 然后取平均
-    // TempLen = Len - (FliterLen * 2);
-
-    Sum = 0;
-    for (i = FliterLen; i < Len - FliterLen; i++)
-    {
-        Sum += Buffer[i];
-    }
-    // Sum /= TempLen;
-    return Sum;
+	return Measurement_TrimmedSumInt(Tab, Len, FliterLen);
 }
 
 
 int nOrderBuffer_10(int *InOrderData)
 {
-	int tempint ;
-	int tnOrderData[10];
-	unsigned char ti,tj;
-
-	for(ti = 0;ti<10;ti++)
-	{
-		tnOrderData[ti]=InOrderData[ti];
-	}
-		
-	for(ti=0; ti<10; ti++)
-	{
-		for(tj=0; tj<9-ti; tj++)
-		{
-			if(tnOrderData[tj] > tnOrderData[tj+1])
-			{
-				tempint           = tnOrderData[tj  ];
-				tnOrderData[tj  ] = tnOrderData[tj+1];
-				tnOrderData[tj+1] = tempint;	
-			}
-		}	
-	}
-	tempint = (tnOrderData[4]+tnOrderData[5])/2;
-	return tempint;
+	return Measurement_Median10(InOrderData);
 }
 
 uint16_t AveFilterTask( int *Tab, unsigned short Len)
 {
-	uint8_t i;
-	uint32_t Sum  = 0;
-	uint16_t Temp = 0;
-	for( i = 0; i < Len; i++ )
-	{
-		 Sum += Tab[i];
-	}
-	Temp = Sum / Len;
-	return Temp;
+	return Measurement_AverageUnsigned(Tab, Len);
 }
 
 int GetAverage(int datain[], unsigned int num)
 {
-	unsigned int i;
-	long int templong = 0;
-	for(i=0;i<num;i++)
-	{
-		templong += datain[i];
-	}
-	return templong/num;
+	return Measurement_AverageInt(datain, num);
 }
 
 long lRefCountFf;
@@ -257,6 +127,8 @@ void ResultCount5P_Flow(long myFf, long myFb, SensorValue sensor_value)
 	static int FlowResultFlip[FLOW_RESULT_FLIP_POINT];
 	static int FlowResultFlipPoint = 0;
 	static uint8_t Flow_Count = 0;
+	uint8_t abnormal = 0;
+	int stable_average = tempFlow;
 	float flow_err = 0;
 	mysGasTrait5P[1].lFf = myFf;
 	mysGasTrait5P[1].lFb = myFb;
@@ -270,33 +142,14 @@ void ResultCount5P_Flow(long myFf, long myFb, SensorValue sensor_value)
 	aveTempFfFb = (mysGasTrait5P[1].lFf/10 + mysGasTrait5P[1].lFb/10)/2;
 	aveTempFfFb = aveTempFfFb - aveFfFbZero;		
 	tempValue = (1.0 / (mysGasTrait5P[1].lFf/10.0 - aveTempFfFb) - 1.0 / (mysGasTrait5P[1].lFb/10.0 - aveTempFfFb));
-    if(tempValue>flowX1)
-    {
-	tempValue =  mysGasTrait5P[1].Coefficient[0]*tempValue + mysGasTrait5P[1].Coefficient[1];
-    }
-    else if (tempValue>flowX2)
-    {
-      tempValue =  Ck1*tempValue + Cb1;
-    }
-	else if(tempValue>flowX3)
-    {
-      tempValue =  Ck2*tempValue + Cb2;
-    }
-    else if(tempValue>flowX4)
-	{
-	tempValue =  Ck3*tempValue + Cb3;
-	}
-	else
-	{
-	tempValue =  Ck4*tempValue + Cb4;
-	}
-	tempValue = tempValue * 10;//改两位小数点输出
-	tempFlow = (int)(tempValue + 0.5); //实时值
-
-	if(tempFlow > 9999 || tempFlow < 0)  //排除负流量异常值
-	{
-		tempFlow = 0;
-	}
+    tempValue = Measurement_ApplyFlowSegments(tempValue,
+                                              mysGasTrait5P[1].Coefficient[0],
+                                              mysGasTrait5P[1].Coefficient[1],
+                                              flowX1, Ck1, Cb1,
+                                              flowX2, Ck2, Cb2,
+                                              flowX3, Ck3, Cb3,
+                                              flowX4, Ck4, Cb4);
+	tempFlow = Measurement_ClampFlow(tempValue);
 
 	FlowResultFlip[FlowResultFlipPoint] = tempFlow;
 	//printf("tempflowfast=%f,Flow_k=%f,Flow_b=%f\n",tempflowfast,mysGasTrait5P[1].Coefficient[0],mysGasTrait5P[1].Coefficient[1]);
@@ -312,21 +165,23 @@ void ResultCount5P_Flow(long myFf, long myFb, SensorValue sensor_value)
 		firstcount_flow++;
 	}
 
-	if(Flow_Count < FLOW_RESULT_FLIP_POINT)
+	if(Flow_Count >= FLOW_RESULT_FLIP_POINT)
 	{
-		mysGasTrait5P[1].Result = tempFlow;
-		Flow_Count++;
-	}else
-	{
-		if(IsAbnormalFluctuation(tempFlow, 8)) // 正常状态：判断是否波动
+		abnormal = IsAbnormalFluctuation(tempFlow, 8);
+		if (!abnormal)
 		{
-			mysGasTrait5P[1].Result = tempFlow; // 波动 → 直接输出，重置计数
-			Flow_Count = 0;   //重置平滑
-		}else
-		{
-			mysGasTrait5P[1].Result = GetAverage(FlowResultFlip, FLOW_RESULT_FLIP_POINT); // 稳定 → 输出平均值
+			stable_average = GetAverage(FlowResultFlip, FLOW_RESULT_FLIP_POINT);
 		}
 	}
+	mysGasTrait5P[1].Result = Measurement_SelectWindowOutput(
+		Flow_Count,
+		FLOW_RESULT_FLIP_POINT,
+		tempFlow,
+		stable_average,
+		abnormal);
+	Flow_Count = Measurement_NextWindowCount(Flow_Count,
+	                                              FLOW_RESULT_FLIP_POINT,
+	                                              abnormal);
 
 	FlowResultFlipPoint++;
 
@@ -385,13 +240,12 @@ void ResultCount5P_O2(long myFf, long myFb, SensorValue sensor_value)
 {
 	int tempO2 = 0;
 	float tempvalue=0;
-  	float tempvalueAir = 0;
-  	float tempvalueO2 = 0;
 	static uint8_t O2ResultFlipPoint = 0;
 	static uint8_t firstcount_o2=0;
 	static uint8_t  O2_Count=0;
 	static int O2ResultFlip[O2_RESULT_FLIP_POINT];
-  	float cal_k = 0, cal_b = 0;
+	uint8_t abnormal = 0;
+	int stable_average = tempO2;
 	mysGasTrait5P[0].lFf = myFf;
 	mysGasTrait5P[0].lFb = myFb;
 
@@ -402,55 +256,41 @@ void ResultCount5P_O2(long myFf, long myFb, SensorValue sensor_value)
 	{
 		O2ResultFlipPoint = 0;
 	}
-	tempvalue = mysGasTrait5P[0].CountLong;
-	tempvalueAir = (fSlopeFsumAir[0] * mysGasTrait5P[0].nTemp * mysGasTrait5P[0].nTemp
-			            + fSlopeFsumAir[1] * mysGasTrait5P[0].nTemp + fSlopeFsumAir[2] );	
-	tempvalueO2 = (fSlopeFsumO2[0] * mysGasTrait5P[0].nTemp * mysGasTrait5P[0].nTemp
-			            + fSlopeFsumO2[1] * mysGasTrait5P[0].nTemp + fSlopeFsumO2[2] );	
-
-	cal_k = (calibrationO2-209)/(tempvalueO2-tempvalueAir);//（30℃氧量程点-209）/（氧浓度点温度修正-零点温度修正）
-	cal_b = 209 - cal_k*tempvalueAir;
-	tempvalue =  cal_k*tempvalue + cal_b;
-	//校正标准源的误差
-	cal_k = (float)(calibrationO2Fac-209)/((float)calibrationO2-209);//（50℃氧量程点-209）/（30℃氧量程点-209）
-	cal_b = 209 - cal_k*209;
-	tempvalue =  cal_k*tempvalue + cal_b;
-
-	tempO2 = (int)(tempvalue + 0.5); //向上取整,实时计算值
-
-	//限大小值0 -- 120%
-	if(tempO2 < 0)
-	{
-		tempO2 = 0;
-	}
-	if(tempO2 > 1200)
-	{
-		tempO2 = 1200;
-	}
+	tempvalue = Measurement_CalculateO2(mysGasTrait5P[0].lFf,
+	                                    mysGasTrait5P[0].lFb,
+	                                    mysGasTrait5P[0].nTemp,
+	                                    fSlopeFsumAir,
+	                                    fSlopeFsumO2,
+	                                    calibrationO2,
+	                                    calibrationO2Fac);
+	tempO2 = Measurement_ClampO2(tempvalue);
 
 	O2ResultFlip[O2ResultFlipPoint] = tempO2;
 
-	if(O2_Count < O2_RESULT_FLIP_POINT)
+	if(O2_Count >= O2_RESULT_FLIP_POINT)
 	{
-		mysGasTrait5P[0].Result = tempO2;
-		O2_Count++;
-	}else
-	{
-		if(IsAbnormalFluctuation(tempvalue, 100)) // 正常状态：判断是否波动
+		abnormal = IsAbnormalFluctuation(tempvalue, 100);
+		if (!abnormal)
 		{
-			mysGasTrait5P[0].Result = tempO2; // 波动 → 直接输出，重置计数
-			O2_Count = 0;
-		}else
-		{
-			mysGasTrait5P[0].Result= GetAverage(O2ResultFlip, O2_RESULT_FLIP_POINT); // 稳定 → 输出平均值
+			stable_average = GetAverage(O2ResultFlip, O2_RESULT_FLIP_POINT);
 		}
 	}
+	mysGasTrait5P[0].Result = Measurement_SelectWindowOutput(
+		O2_Count,
+		O2_RESULT_FLIP_POINT,
+		tempO2,
+		stable_average,
+		abnormal);
+	O2_Count = Measurement_NextWindowCount(O2_Count,
+	                                          O2_RESULT_FLIP_POINT,
+	                                          abnormal);
 
-	if(firstcount_o2 < O2_RESULT_FLIP_POINT)  //开机未填满窗口 → 直接输出
-	{
-		mysGasTrait5P[0].Result = O2_INITIAL_VALUE;
-		firstcount_o2++;
-	}
+	mysGasTrait5P[0].Result = Measurement_ApplyO2Startup(
+		firstcount_o2,
+		O2_RESULT_FLIP_POINT,
+		mysGasTrait5P[0].Result);
+	firstcount_o2 = Measurement_NextStartupCount(firstcount_o2,
+	                                               O2_RESULT_FLIP_POINT);
 	
 	O2ResultFlipPoint++;
 	

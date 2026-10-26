@@ -1,20 +1,16 @@
 #include <stdio.h>
 #include "hk32f0xxa_flash.h"
 #include "flash.h"
+#include "persistent_layout.h"
 
-#define FLASH_PAGE_SIZE         ((uint32_t)0x00000400)   /* FLASH Page Size */
-//////#define FLASH_USER_START_ADDR   ((uint32_t)0x08007C00)   /* Start @ of user Flash area */
-//////#define FLASH_USER_END_ADDR     ((uint32_t)0x08007FFF)   /* End @ of user Flash area */
-
-#define PAGE_START_ADDR(N)   ((unsigned int)((FLASH_PAGE_SIZE*N)+0x08000000))
-#define FLASH_USER_START_ADDR    PAGE_START_ADDR(31)   //设置参数保存在31Sector
-#define FLASH_BACKUPDATA_ADDR    PAGE_START_ADDR(30)   //设置参数保存在31Sector
+#define FLASH_USER_START_ADDR    ((uint32_t)PERSISTENT_PRIMARY_ADDRESS)
+#define FLASH_BACKUPDATA_ADDR    ((uint32_t)PERSISTENT_BACKUP_ADDRESS)
 #define FLASH_USER_INDEX   0U
 #define FLASH_BACK_IDNEX   1U
-#define FLASH_CHECK_DATA_OFFSET   258//检验的数据放在最后的一个地址
-#define FLASH_DATA_NUM  260U //定义存储在Flash的数据个数 
+#define FLASH_CHECK_DATA_OFFSET   PERSISTENT_CHECK_OFFSET
+#define FLASH_DATA_NUM            PERSISTENT_DATA_SIZE
 unsigned int FlashCheckData[2] = {0};//判断flash数据是否丢失
-static unsigned char cSaveChar[260];
+static unsigned char cSaveChar[PERSISTENT_DATA_SIZE];
 
 /******************************************************************** 
 *

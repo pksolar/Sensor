@@ -7,8 +7,8 @@
 
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H
-#define __MAIN_H
+#ifndef USER_MAIN_H
+#define USER_MAIN_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +16,7 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include <stdio.h>
+#include "app_types.h"
 
 #if defined(HK32F030xxA)
 #include "hk32f030xxA.h"
@@ -47,16 +48,6 @@ extern "C" {
 #define AlarmFlagFlow   (0x01 << 3)  
 #define AlarmFlagRS232  (0x01 << 4) 
 
-typedef struct
-{
-	int temperature;
-	int temperature_NTC;
-	int nRH;
-	float press_in;
-	float press_out;
-	int h2o_press_factor;
-} SensorValue;
-
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* Exported macro ------------------------------------------------------------*/
@@ -66,5 +57,5 @@ typedef struct
 }
 #endif  /* End of __cplusplus */
 
-#endif /*__MAIN_H */
+#endif /* USER_MAIN_H */
 

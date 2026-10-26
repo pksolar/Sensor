@@ -1,6 +1,6 @@
-#ifndef __ResultCount_H
-#define __ResultCount_H
-#include "main.h"
+#ifndef USER_RESULT_COUNT_H
+#define USER_RESULT_COUNT_H
+#include "app_types.h"
 
 typedef struct {
     int x;  // 状态估计值（滤波后的飞行时间）
@@ -28,4 +28,4 @@ void ResultCount5P_O2(long myFf, long myFb, SensorValue sensor_value);
 extern long lRefCountFf;
 extern long lRefCountFb;
 
-#endif /* __ResultCount_H */
+#endif /* USER_RESULT_COUNT_H */

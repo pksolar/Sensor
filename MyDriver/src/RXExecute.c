@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include "usart.h"
 #include "flash.h"
+#include "protocol_codec.h"
+#include "persistent_layout.h"
 #include <string.h>
 
 #if SENSOR_VERSION == YY
@@ -25,14 +27,26 @@ int nOrderFb;		//T1计数
 
 unsigned char  CaliFlag;
 
+static void SendResponse(const unsigned char *frame)
+{
+	unsigned short length;
+	unsigned short index;
+	unsigned char checksum;
+
+	length = frame[1] + 2;
+	checksum = Protocol_ChecksumByte(frame, length);
+	for (index = 0; index < length; index++)
+	{
+		putchar(frame[index]);
+	}
+	putchar(checksum);
+}
+
 static unsigned char SerialJudge(unsigned char L)
 {
 	if(temprx[1]!=L)
 	{	//接受命令长度不对
-		temprx[0]	 =NACK_RX;		//回答类型
-		temprx[1]	 =2;			//长度	
-	//	temprx[2]	     =1;			//命令号
-		temprx[3]    =LengthError;	//参数
+		Protocol_EncodeLengthError(temprx);
 	}
 	else
 	{
@@ -43,77 +57,27 @@ static unsigned char SerialJudge(unsigned char L)
 
 void AutoSendData(SensorValue sensor_value)
 {
-   unsigned char checksum;
-   int tempint;
-	
-    temprx[0]	= ACK_RX;		//回答类型Answer
-	#if SENSOR_VERSION == YY 
-    	temprx[1]	= 9;				//长度Length
+	#if SENSOR_VERSION == YY
+		Protocol_EncodeLiveDataYY(temprx,
+		                         mysGasTrait5P[0].ReResult,
+		                         mysGasTrait5P[1].ReResult,
+		                         mysGasTrait5P[0].Result,
+		                         sensor_value.temperature_NTC);
 	#elif SENSOR_VERSION == MT
-		temprx[1]	= 11;				//长度Length
-	#endif
-    temprx[2]	= 1;				//命令号Command
-    //O2限值				
-    tempint  = 	mysGasTrait5P[0].ReResult;
-    		// if(tempint > 280)	
-    		// 		tempint += 25;   
-
-   if(tempint < 205)			tempint = 205;
-   else if(tempint > 956)		tempint = 956;
-
-    temprx[3]=(tempint)>>8;
-    temprx[4]=(tempint)& 0xff;
-
-    //流量限制			
-    tempint  = 	mysGasTrait5P[1].ReResult;
-	#if SENSOR_VERSION == MT
-		tempint	= tempint/10;		//流量改一位小数
-	#endif
-    if(tempint < 0)			
-	{
-		tempint = 0;
-	}
-
-	if((tempint < 2)&&(mysGasTrait5P[0].Result<=240))
-    {
-		temprx[3] = 0x00;
-		temprx[4] = 0xD2;
-    }
-
-    temprx[5]=(tempint)>>8;
-    temprx[6]=(tempint)& 0xff;
-
-    tempint = sensor_value.temperature_NTC;
-    tempint = (int)((tempint /10.0)+0.5);
-    temprx[7]=(tempint)>>8;
-    temprx[8]=(tempint)& 0xff;
-
-	#if SENSOR_VERSION == YY 
-    	tempint = 0;
-		temprx[9]= (tempint)>>8;
-    	temprx[10]=(tempint)& 0xff;
-	#elif SENSOR_VERSION == MT
-		tempint = sensor_value.press_in * 10;
-		temprx[9]= (tempint)>>8;
-    	temprx[10]=(tempint)& 0xff;
-		tempint = sensor_value.press_out * 10;
-		temprx[11]= (tempint)>>8;
-		temprx[12]=(tempint)& 0xff;
+		Protocol_EncodeLiveDataMT(temprx,
+		                         mysGasTrait5P[0].ReResult,
+		                         mysGasTrait5P[1].ReResult,
+		                         mysGasTrait5P[0].Result,
+		                         sensor_value.temperature_NTC,
+		                         sensor_value.press_in,
+		                         sensor_value.press_out);
 	#endif
 					
-	// ****************输出*******************
-		checksum = 0;
-		for(int i=0; i<temprx[1]+2; i++)
-		{
-			checksum+=temprx[i];
-			putchar(temprx[i]);
-		}
-		putchar(-checksum);			
+	SendResponse(temprx);
 }
 
 void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 {
- unsigned char checksum;
  unsigned char tSetStep;
  unsigned char SaveGasFlag;
  unsigned char OutputFlag;
@@ -121,11 +85,9 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 
  Get_OutputFlag(&OutputFlag);
 
-	checksum=0;
 	for(int i=0;i<(temprx[1]+3);i++)
 	{	
 		temprx[i]=rxBuffer[i];
-		checksum+=temprx[i];		
 		rxBuffer[i]=0;
 //		printf("%d ",(int)temprx[i]);
 //		putchar(temprx[i]);
@@ -134,7 +96,8 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 
 
 // *****************************************
-	if((temprx[0]==0x11)&&(checksum==0))//IPadd)
+	if((temprx[0]==0x11)
+	   && Protocol_IsChecksumValid(temprx, (unsigned short)(temprx[1] + 3)))//IPadd)
 	{				
 		cAlarmRS232Count = 0;
 		
@@ -144,57 +107,20 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
         case 1:	
         if(SerialJudge(1))
         {
-        temprx[0]	= ACK_RX;		//回答类型
-        #if SENSOR_VERSION == YY 
-    		temprx[1]	= 9;				//长度Length
+		#if SENSOR_VERSION == YY
+			Protocol_EncodeLiveDataYY(temprx,
+			                         mysGasTrait5P[0].ReResult,
+			                         mysGasTrait5P[1].ReResult,
+			                         mysGasTrait5P[0].Result,
+			                         sensor_value.temperature_NTC);
 		#elif SENSOR_VERSION == MT
-			temprx[1]	= 11;				//长度Length
-		#endif
-		temprx[2]	= 1;			//命令号
-        //O2限值				
-        tempint  = 	mysGasTrait5P[0].ReResult;			
-        //if(tempint > 280)	
-        //		tempint += 25;   	
-
-		if(tempint < 205)			tempint = 205;
-        else if(tempint > 956)		tempint = 956;
-
-        temprx[3]=(tempint)>>8;
-        temprx[4]=(tempint)& 0xff;
-
-        //流量限制			
-        tempint  = 	mysGasTrait5P[1].ReResult;
-		#if SENSOR_VERSION == MT
-			tempint	= tempint/10;		//流量改一位小数
-		#endif
-        if(tempint < 0)			tempint = 0;
-		
-		if((tempint < 2)&&(mysGasTrait5P[0].Result<=240))
-        {
-			temprx[3] = 0x00;
-			temprx[4] = 0xD2;
-        }
-
-        temprx[5]=(tempint)>>8;
-        temprx[6]=(tempint)& 0xff;
-
-        tempint = sensor_value.temperature_NTC;
-        tempint = (int)((tempint /10.0)+0.5);
-
-        temprx[7]=(tempint)>>8;
-        temprx[8]=(tempint)& 0xff;
-
-		#if SENSOR_VERSION == YY 
-			tempint = 0;
-			temprx[9]= (tempint)>>8;
-			temprx[10]=(tempint)& 0xff;
-		#elif SENSOR_VERSION == MT
-			tempint = sensor_value.press_in * 10;
-			temprx[9]= (tempint)>>8;
-			temprx[10]=(tempint)& 0xff;
-			tempint = sensor_value.press_out * 10;
-			temprx[11]= (tempint)>>8;
-			temprx[12]=(tempint)& 0xff;
+			Protocol_EncodeLiveDataMT(temprx,
+			                         mysGasTrait5P[0].ReResult,
+			                         mysGasTrait5P[1].ReResult,
+			                         mysGasTrait5P[0].Result,
+			                         sensor_value.temperature_NTC,
+			                         sensor_value.press_in,
+			                         sensor_value.press_out);
 		#endif
 		}				
 		break;
@@ -318,7 +244,7 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 						flash_data->SendOrder = 0;
 					
 					ReadFlashAll();
-							WriteEeprom(130,flash_data->SendOrder);	
+							WriteEeprom(PERSISTENT_ADDR_SEND_ORDER, flash_data->SendOrder);
   				WriteFlashAll();	
 
 					temprx[3] = flash_data->SendOrder;		
@@ -341,7 +267,7 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 						flash_data->cENAutoSendFlag = 0;
 					
 					ReadFlashAll();
-							WriteEeprom(139, flash_data->cENAutoSendFlag);	
+							WriteEeprom(PERSISTENT_ADDR_AUTO_SEND, flash_data->cENAutoSendFlag);
   				WriteFlashAll();	
 
 					temprx[3] = flash_data->cENAutoSendFlag;						
@@ -355,7 +281,7 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 					temprx[1]	= 2;			//长度	
 					//			temprx[2]	= 1;			//命令号
 					ReadFlashAll();
-					WriteEeprom(255,temprx[3]);
+					WriteEeprom(PERSISTENT_ADDR_BAUD_RATE, temprx[3]);
 			
 					WriteFlashAll();	
 					}
@@ -399,8 +325,8 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 						{
 							flash_data->nWarnVale[SaveGasFlag] = tempint;
 							ReadFlashAll();
-								WriteEeprom((131+SaveGasFlag*2),temprx[5]);		//低8位
-	 							WriteEeprom((132+SaveGasFlag*2),temprx[4]);		//高8位
+								WriteEeprom((PERSISTENT_ADDR_WARN_VALUES + SaveGasFlag * 2), temprx[5]);
+							WriteEeprom((PERSISTENT_ADDR_WARN_VALUES + SaveGasFlag * 2 + 1), temprx[4]);
 							WriteFlashAll();
 						}	
 						temprx[4] = (flash_data->nWarnVale[SaveGasFlag] >>8  );
@@ -413,8 +339,8 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 							flash_data->coef.K_O2 = tempint;
 							
 							ReadFlashAll();
-								WriteEeprom((140),temprx[5]);		//低8位
-	 							WriteEeprom((141),temprx[4]);		//高8位
+								WriteEeprom(PERSISTENT_ADDR_O2_K, temprx[5]);
+							WriteEeprom(PERSISTENT_ADDR_O2_K + 1, temprx[4]);
 							WriteFlashAll();
 						}	
 						temprx[4] = (flash_data->coef.K_O2 >>8  );
@@ -426,8 +352,8 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 						{
 							flash_data->coef.B_O2 = tempint;
 							ReadFlashAll();
-								WriteEeprom((142),temprx[5]);		//低8位
-	 							WriteEeprom((143),temprx[4]);		//高8位
+								WriteEeprom(PERSISTENT_ADDR_O2_B, temprx[5]);
+							WriteEeprom(PERSISTENT_ADDR_O2_B + 1, temprx[4]);
 							WriteFlashAll();
 						}	
 						temprx[4] = (flash_data->coef.B_O2 >>8  );
@@ -465,7 +391,7 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 						temprx[1]	= 11;
 						for(int i =0;i<10; i++)
 						{			
-							temprx[3+i] = ReadEeprom(120+i);
+							temprx[3+i] = ReadEeprom(PERSISTENT_ADDR_SERIAL_NUMBER + i);
 						}
 					}
 					else
@@ -486,10 +412,10 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 					ReadFlashAll();
 					for(int i=0;i<8;i++)
 					{
-						WriteEeprom(120+i, temprx[3+i]);
+						WriteEeprom(PERSISTENT_ADDR_SERIAL_NUMBER + i, temprx[3+i]);
 					}
-					WriteEeprom(128, 0);
-					WriteEeprom(129, 0);
+					WriteEeprom(PERSISTENT_ADDR_SERIAL_NUMBER + 8, 0);
+					WriteEeprom(PERSISTENT_ADDR_SERIAL_NUMBER + 9, 0);
 					WriteFlashAll();
 				}
 /*
@@ -895,14 +821,7 @@ void RXExecute(SensorValue sensor_value, FlashData *flash_data)
 					temprx[3]	=NotCommand;	//参数
 			break;
 		}
-	// ****************输出*******************
-		checksum = 0;
-		for(int i=0;i<temprx[1]+2;i++)
-		{
-			checksum+=temprx[i];
-			putchar(temprx[i]);
-		}
-		putchar(-checksum);
+		SendResponse(temprx);
 		
 	// ***************************************				
 	}

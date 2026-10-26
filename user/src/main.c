@@ -28,6 +28,7 @@
 #include "RXExecute.h"
 #include "LQTP.h"
 #include "IIC_LQTP.h"
+#include "persistent_layout.h"
 #include "stdlib.h"
 #include "math.h"
 
@@ -88,6 +89,183 @@ static long lFlowRefCountFb;
 
 char cFpoint; 		//10次计数
 
+static void ApplicationRunMeasurementTask(SensorValue sensor_value)
+{
+	if(firstcount1 < FLY_BUFFER_NUM)
+	{
+		firstcount1++;
+		lFlowRefCountFf = nT1CountLeft * 10;
+		lFlowRefCountFb = nT1CountRight * 10;
+	}
+	else
+	{
+		lFlowRefCountFf = FilterIntDataTask(nBufferFf, FLY_BUFFER_NUM, FLY_DIFF_NUM);
+		lFlowRefCountFb = FilterIntDataTask(nBufferFb, FLY_BUFFER_NUM, FLY_DIFF_NUM);
+	}
+
+	nOrderFf = lFlowRefCountFf / 10;
+	nOrderFb = lFlowRefCountFb / 10;
+	ResultCount5P_O2(lFlowRefCountFf, lFlowRefCountFb, sensor_value);
+	ResultCount5P_Flow(lFlowRefCountFf, lFlowRefCountFb, sensor_value);
+
+	if(debugflag)
+	{
+		printf("%ld,%ld; ", lFlowRefCountFf, lFlowRefCountFb);
+	}
+}
+
+static void ApplicationRunOutputTask(FlashData *flash_data)
+{
+	int cBufferPoint;
+
+	for(cBufferPoint = 0; cBufferPoint < FLOW_BUFFER_NUM - 1; cBufferPoint++)
+	{
+		nBuffREflow[cBufferPoint] = nBuffREflow[cBufferPoint + 1];
+	}
+	nBuffREflow[FLOW_BUFFER_NUM - 1] = mysGasTrait5P[1].PressResult;
+
+	if(firstcount2 < FLOW_BUFFER_NUM)
+	{
+		firstcount2++;
+		mysGasTrait5P[1].ReResult = mysGasTrait5P[1].PressResult;
+	}
+	else if(abs(nBuffREflow[0] - nBuffREflow[FLOW_BUFFER_NUM - 1]) > 10)
+	{
+		mysGasTrait5P[1].ReResult = mysGasTrait5P[1].PressResult;
+	}
+	else
+	{
+		mysGasTrait5P[1].ReResult = FilterIntDataTask(
+			nBuffREflow, FLOW_BUFFER_NUM, FLOW_DIFF_NUM) / 20;
+	}
+
+	if(debugflag)
+	{
+		printf("TO:%d,", mysGasTrait5P[0].Result);
+		printf("Cn_O2:%d,%d,%d\n", flash_data->coef.Cn_O2,
+		       flash_data->coef.K_O2, flash_data->coef.B_O2);
+	}
+
+	StateFlag &= OverFlag;
+	if(mysGasTrait5P[0].Result < 820)
+	{
+		StateFlag |= AlarmFlagO2;
+	}
+	if(mysGasTrait5P[0].Result < 500)
+	{
+		StateFlag |= AlarmFlagO2Low;
+	}
+	if(mysGasTrait5P[1].Result < 7)
+	{
+		StateFlag |= AlarmFlagFlow;
+	}
+
+	cAlarmRS232Count++;
+	if(cAlarmRS232Count >= 25)
+	{
+		cAlarmRS232Count = 25;
+		StateFlag |= AlarmFlagRS232;
+	}
+	cAutoSendFlag = (cAlarmRS232Count > 5) ? 1 : 0;
+
+	fnPinWarnLEDs(mysGasTrait5P[0].Result, flash_data->nWarnVale);
+	PWMDAOutput(0, mysGasTrait5P[0].ReResult);
+	if(mysGasTrait5P[1].Result >= 0)
+	{
+		PWMDAOutput(1, mysGasTrait5P[1].ReResult);
+	}
+	else
+	{
+		PWMDAOutput(1, -mysGasTrait5P[1].ReResult);
+	}
+}
+
+static void ApplicationRunReportTask(unsigned char set_baud_rate,
+	                                 SensorValue sensor_value,
+	                                 const FlashData *flash_data)
+{
+	int cBufferPoint;
+	unsigned char output_flag;
+
+	mysGasTrait5P[0].PressResult = mysGasTrait5P[0].Result
+	                                + sensor_value.h2o_press_factor;
+	for(cBufferPoint = 0; cBufferPoint < O2_BUFFER_NUM - 1; cBufferPoint++)
+	{
+		nBuffREO2[cBufferPoint] = nBuffREO2[cBufferPoint + 1];
+	}
+	nBuffREO2[O2_BUFFER_NUM - 1] = mysGasTrait5P[0].PressResult;
+
+	if(firstcount3 < O2_BUFFER_NUM)
+	{
+		firstcount3++;
+		mysGasTrait5P[0].ReResult = mysGasTrait5P[0].PressResult;
+	}
+	else if(abs(nBuffREO2[0] - nBuffREO2[O2_BUFFER_NUM - 1]) > 150)
+	{
+		mysGasTrait5P[0].ReResult = mysGasTrait5P[0].PressResult;
+	}
+	else
+	{
+		mysGasTrait5P[0].ReResult = FilterIntDataTask(
+			nBuffREO2, O2_BUFFER_NUM, O2_DIFF_NUM) / 20;
+	}
+
+	fnRUNLED();
+	Get_OutputFlag(&output_flag);
+	if((set_baud_rate != 2) && (cAutoSendFlag == 1)
+	   && (debugflag == 0) && (output_flag == 0)
+	   && flash_data->cENAutoSendFlag)
+	{
+		AutoSendData(sensor_value);
+	}
+}
+
+static void ApplicationProcessSerial(SensorValue sensor_value,
+	                                 FlashData *flash_data)
+{
+	unsigned short eprom_data;
+	int i;
+
+	cAlarmRS232Count = 0;
+	RXExecute(sensor_value, flash_data);
+
+	if(CaliFlag == 1)
+	{
+		CaliFlag = 0;
+		if(debugflag)
+		{
+			putchar('\n');
+			printf("Num: ");
+			for(i = 0; i < 5; i++)
+			{
+				eprom_data = (unsigned short)ReadEeprom(
+					PERSISTENT_ADDR_SERIAL_NUMBER + i * 2);
+				eprom_data = eprom_data * 256;
+				eprom_data += (unsigned short)ReadEeprom(
+					PERSISTENT_ADDR_SERIAL_NUMBER + i * 2 + 1);
+				printf("%u-", eprom_data);
+			}
+			putchar('\n');
+			for(i = 0; i < 8; i++)
+			{
+				putchar(version[i]);
+			}
+			putchar('\n');
+		}
+
+		FnLinearization1();
+		FnLinearization(1);
+		if(debugflag)
+		{
+			printf("Flash %d %d\n", FlashCheckData[0], FlashCheckData[1]);
+		}
+		debugflag = 0;
+	}
+
+	rx232Flag = 0;
+	rxCount = 0;
+}
+
 
 /**
   * @brief  Main program.
@@ -98,12 +276,10 @@ int main(void)
 {
 	unsigned char cReadTCount;	//读温度计数
 	unsigned char setBaudrateFlag = 0;
-	unsigned short eprom_data;
 	SensorValue sensor_value = {0};
 	FlashData flash_data = {0};
 	float nH2o = 0.0f;
 	float nPress = 0.0f;
-	unsigned char OutputFlag = 0;
 	static unsigned char press_count = 0;
 	static float press_in_buff[20] = {0};
 	static float press_out_buff[20] = {0};
@@ -114,7 +290,7 @@ int main(void)
 	//SystemCoreClockUpdate(); //ST的时钟频率是读出来的，航顺的是定义的，航顺去掉了锁相环时钟源导致对不上
 	SysTick_Config(SystemCoreClock / 1000);  //时间片1ms
 	GpioConfig();
-	setBaudrateFlag  = ReadEeprom(255);
+	setBaudrateFlag  = ReadEeprom(PERSISTENT_ADDR_BAUD_RATE);
 
 	if(setBaudrateFlag==2)
 	{
@@ -183,148 +359,22 @@ int main(void)
 	}
 
 	if(Flag20ms == 1)
-	{			
+	{
 		Flag20ms = 0;
-		//==========排序平均值===============
-		if(firstcount1 < FLY_BUFFER_NUM)
-		{
-			firstcount1++;
-			lFlowRefCountFf  = nT1CountLeft * 10;	
-			lFlowRefCountFb  = nT1CountRight * 10;
-		}
-		else
-		{
-			lFlowRefCountFf =  FilterIntDataTask(nBufferFf, FLY_BUFFER_NUM, FLY_DIFF_NUM);
-			lFlowRefCountFb =  FilterIntDataTask(nBufferFb, FLY_BUFFER_NUM, FLY_DIFF_NUM);
-		}
-		nOrderFf = lFlowRefCountFf / 10;
-		nOrderFb = lFlowRefCountFb / 10;
-
-		ResultCount5P_O2(lFlowRefCountFf, lFlowRefCountFb, sensor_value);
-		ResultCount5P_Flow(lFlowRefCountFf, lFlowRefCountFb, sensor_value);
-		
-		if(debugflag)
-		{	
-			printf( "%ld,%ld; ", lFlowRefCountFf, lFlowRefCountFb);
-		}
+		ApplicationRunMeasurementTask(sensor_value);
 	}
 
 	if(Flag100ms==1)//100ms任务
-		{
-			Flag100ms=0;		
-				//**************增加滑动*****************
-			for (int cBufferPoint = 0; cBufferPoint < FLOW_BUFFER_NUM - 1; cBufferPoint++)
-			{
-				nBuffREflow[cBufferPoint] = nBuffREflow[cBufferPoint + 1];
-			}
-			nBuffREflow[FLOW_BUFFER_NUM - 1] = mysGasTrait5P[1].PressResult;
-			//==========排序平均值===============
-			if(firstcount2 < FLOW_BUFFER_NUM)
-			{
-				firstcount2++;
-				mysGasTrait5P[1].ReResult  = mysGasTrait5P[1].PressResult; //流量	
-			}
-			else
-			{
-				if(abs(nBuffREflow[0] - nBuffREflow[FLOW_BUFFER_NUM-1]) > 10)  //跳变大于1L
-				{
-					mysGasTrait5P[1].ReResult = mysGasTrait5P[1].PressResult;
-				}else{
-					mysGasTrait5P[1].ReResult =  FilterIntDataTask(nBuffREflow, FLOW_BUFFER_NUM, FLOW_DIFF_NUM) / 20;
-				}
-			}
-	//				mysGasTrait5P[0].Result -= nFnO2CorrectionT(nTempGas,mysGasTrait5P[0].Result);
-				//mysGasTrait5P[0].Result = mysGasTrait5P[0].Result+(int)(nH2o);	
-	//				Cn_O2 = K_O2/1000.0*mysGasTrait5P[0].Result +B_O2/100;		//同时显示纯氧气浓度PSAResult
-	//        mysGasTrait5P[0].PSAResult = (mysGasTrait5P[0].Result+34.2)/1.142;		//同时显示PSA浓度
-			if(debugflag)
-			{
-				printf("TO:%d,",mysGasTrait5P[0].Result);
-			}	
-			if(debugflag)
-			{
-				printf("Cn_O2:%d,%d,%d\n",flash_data.coef.Cn_O2,flash_data.coef.K_O2,flash_data.coef.B_O2);
-			}			
-			/*~~~~~~~~~~~~状态位报警~~~~~~~~~~~~*/	
-			StateFlag &= OverFlag;          //其他状态位复位			
-			if(mysGasTrait5P[0].Result <820)			
-			{
-					StateFlag |= AlarmFlagO2;
-			} 
-			if(mysGasTrait5P[0].Result <500)			
-			{
-					StateFlag |= AlarmFlagO2Low;
-			} 
-			//低流量报警
-			if(mysGasTrait5P[1].Result <7)			
-			{
-				StateFlag |= AlarmFlagFlow;
-			}
-			cAlarmRS232Count++;
-			if(cAlarmRS232Count >= 25 )	
-			{               
-				cAlarmRS232Count = 25;	
-				StateFlag |= AlarmFlagRS232;
-			}  
-			if(cAlarmRS232Count > 5)	//5S没有收到数据就会进行自动发送
-			{
-				cAutoSendFlag = 1;
-			}
-			else
-			{
-				cAutoSendFlag = 0;
-			}
-			/*~~~~~~~~~~~~报警指示~~~~~~~~~~~~*/			
-			fnPinWarnLEDs(mysGasTrait5P[0].Result, flash_data.nWarnVale);
-			/*~~~~~~~~~~~~模拟输出~~~~~~~~~~~~*/			
-			PWMDAOutput(0,(mysGasTrait5P[0].ReResult/**/   ));	//O2输出 *****************************************************修改处
-			if(mysGasTrait5P[1].Result >= 0)
-			{PWMDAOutput(1, (mysGasTrait5P[1].ReResult));}	//流量输出
-			else
-			{PWMDAOutput(1,-(mysGasTrait5P[1].ReResult));}	//流量输出				
-			
-		}
+	{
+		Flag100ms=0;
+		ApplicationRunOutputTask(&flash_data);
+	}
 
 	if(Flag500ms==1)//500ms任务
-		{
-			Flag500ms=0;
-			mysGasTrait5P[0].PressResult = mysGasTrait5P[0].Result + sensor_value.h2o_press_factor;
-			for (int cBufferPoint = 0; cBufferPoint < O2_BUFFER_NUM - 1; cBufferPoint++)
-			{
-				nBuffREO2[cBufferPoint] = nBuffREO2[cBufferPoint + 1];
-			}
-			nBuffREO2[O2_BUFFER_NUM - 1] = mysGasTrait5P[0].PressResult;
-			//==========排序平均值===============
-			if(firstcount3 < O2_BUFFER_NUM)
-			{
-				firstcount3++;	
-				mysGasTrait5P[0].ReResult  = mysGasTrait5P[0].PressResult; //浓度
-			}
-			else
-			{
-				if(abs(nBuffREO2[0] - nBuffREO2[O2_BUFFER_NUM-1]) > 150)  //跳变大于15%
-				{
-					mysGasTrait5P[0].ReResult = mysGasTrait5P[0].PressResult;
-				}else{
-					mysGasTrait5P[0].ReResult =  FilterIntDataTask(nBuffREO2, O2_BUFFER_NUM, O2_DIFF_NUM) / 20;
-				}	
-			}
-			fnRUNLED();
-			Get_OutputFlag(&OutputFlag);
-			if(setBaudrateFlag!=2)
-			{
-				if(	cAutoSendFlag ==1)
-				{
-					if((debugflag == 0)&&(OutputFlag == 0))
-					{
-						if(flash_data.cENAutoSendFlag)	//自动发送发布
-						{
-							AutoSendData(sensor_value);
-						}
-					}
-				}
-			}		
-		}
+	{
+		Flag500ms=0;
+		ApplicationRunReportTask(setBaudrateFlag, sensor_value, &flash_data);
+	}
 
 	if(Flag1000ms==1)//1000ms任务
 		{
@@ -382,44 +432,9 @@ int main(void)
 		}
 
 	if(rx232Flag==1)
-		{
-			cAlarmRS232Count= 0;  
-			RXExecute(sensor_value, &flash_data);	
-						
-			if(CaliFlag ==1 )
-			{
-				CaliFlag = 0;
-				
-				if(debugflag)
-				{	
-					putchar('\n');	//输出编号	
-					printf("Num: ");
-					for(int i=0;i<5;i++)
-					{
-						eprom_data  = (unsigned short)ReadEeprom(120+i*2+0);
-						eprom_data  = eprom_data*256;
-						eprom_data += (unsigned short)ReadEeprom(120+i*2+1);						
-						printf("%u-",eprom_data);																  
-					}						
-					putchar('\n');	//输出编号
-			
-					for(int i=0;i<8;i++) putchar(version[i]);	//输出软件版本?
-					putchar('\n');
-				}					
-				
-					FnLinearization1();				
-	//                FnLinearization(0);
-					FnLinearization(1);	
-				if(debugflag)
-				{
-					printf("Flash %d %d\n",FlashCheckData[0],FlashCheckData[1]);
-				}
-				debugflag = 0;
-			}		
-
-			rx232Flag=0;
-			rxCount = 0;		
-		}
+	{
+		ApplicationProcessSerial(sensor_value, &flash_data);
+	}
 
 	__WFI();   //进入低功耗
 

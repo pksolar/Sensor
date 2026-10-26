@@ -4,6 +4,7 @@
 #include "SubFun.h"
 #include "flash.h"
 #include "CoeffCountMod.h"
+#include "persistent_layout.h"
 
 float Ck1=0,Cb1=0,Ck2=0,Cb2=0,Ck3=0,Cb3=0,Ck4=0,Cb4=0;
 float flowX1=0.0f,flowX2=0.0f,flowX3=0.0f,flowX4=0.0f;
@@ -44,7 +45,10 @@ static  long   templong;
 
 void fnSaveAnchor(SelfSetAnchor anchor)
 {
-	int  SaveAddr[4] = {60, 200, 0, 150}; //流量、N2、空气、O2
+	int SaveAddr[4] = {PERSISTENT_ADDR_FLOW_ANCHORS,
+	                   PERSISTENT_ADDR_N2_ANCHORS,
+	                   PERSISTENT_ADDR_O2_POINTS,
+	                   PERSISTENT_ADDR_AIR_TEMP_POINTS};
 	unsigned char flow_gas = 0;
 	printf("type:%d, point:%d, auto:%d, percent:%d, temp:%d, Ff:%d, Fb:%d\r\n",
 	anchor.type, anchor.point, anchor.auto_flag, anchor.concentrtion, anchor.temperature, anchor.Ff, anchor.Fb);
@@ -116,7 +120,7 @@ void FnPointSave(unsigned char tGasNUM,unsigned char tStep,int tInPut)
 ReadFlashAll();
 	if(tGasNUM==0)
 	{
-		SaveAddr = tGasNUM * 60 + tStep * 2 + 0;
+		SaveAddr = PERSISTENT_ADDR_O2_POINTS + tStep * 2;
 		WriteEepromInt(SaveAddr, tInPut);
 		//	tTemp
 		//	SaveAddr = tGasNUM*60 +  tStep*2+8;
@@ -134,7 +138,7 @@ ReadFlashAll();
 	else
 	{
 		//Y[i]
-		SaveAddr = tGasNUM*46 + tStep*2+0;
+		SaveAddr = PERSISTENT_ADDR_FLOW_POINTS + tStep * 2;
 		WriteEepromInt(SaveAddr,tInPut);	 				
 	//	tTemp
 	//	SaveAddr = tGasNUM*60 +  tStep*2+8;
@@ -193,7 +197,7 @@ void FnPointSaveT(unsigned char tGasNUM, int tInPut)
 
 	ReadFlashAll();
 	//Y[i]
-	SaveAddr = 150+tGasNUM*12;
+	SaveAddr = PERSISTENT_ADDR_AIR_TEMP_POINTS + tGasNUM * 12;
 	WriteEepromInt(SaveAddr,tInPut); 				
 	//	tTemp
 	SaveAddr += 2;
@@ -264,7 +268,7 @@ float y[6];
 	for(int i=0; i<6; i++)
 	{
 		//	tInput
-		ReadAddr = tGasNUM*46 + i*2+0;
+		ReadAddr = tGasNUM * PERSISTENT_ADDR_FLOW_POINTS + i * 2;
 		tInput = ReadEepromInt(ReadAddr);
 													 			
 		//	tTempK
@@ -418,7 +422,7 @@ void FnLinearization1(void)
 	for(int i=0; i<3; i++)
 	{
 		//	tInput
-		ReadAddr = 150 + i*12;	
+		ReadAddr = PERSISTENT_ADDR_AIR_TEMP_POINTS + i * 12;
 		tInput =ReadEepromInt(ReadAddr);
 										 			
 		//	tTempK
@@ -456,7 +460,7 @@ void FnLinearization1(void)
 	for(int i=0;i<3;i++)
 	{
 		//	tInput
-		ReadAddr = i*2+0;
+		ReadAddr = PERSISTENT_ADDR_O2_POINTS + i * 2;
 		tInput = ReadEepromInt(ReadAddr);	
 		CnBuffer[i] = tInput;
 		if(i==1)

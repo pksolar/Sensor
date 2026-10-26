@@ -1,8 +1,7 @@
-#ifndef __RXExecute_H
-#define __RXExecute_H
+#ifndef MYDRIVER_RX_EXECUTE_H
+#define MYDRIVER_RX_EXECUTE_H
 
-#include "main.h"
-#include "SubFun.h"
+#include "app_types.h"
 
 /*~~~~~~~~~~~~串口通讯~~~~~~~~~~~~*/
 //erroor code
@@ -33,4 +32,4 @@ extern const unsigned char version[];
 extern const unsigned char sn[];
 
 
-#endif /* __RXExecute_H */
+#endif /* MYDRIVER_RX_EXECUTE_H */

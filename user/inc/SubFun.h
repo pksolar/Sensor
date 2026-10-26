@@ -1,37 +1,9 @@
-#ifndef __SubFun_H
-#define __SubFun_H
+#ifndef USER_SUBFUN_H
+#define USER_SUBFUN_H
 
 #include <hk32f0xxa_gpio.h>
 #include "hk32f0xxa_conf.h"
-#include "main.h"
-
-typedef struct  
-{
-	int K_O2;	//纯氧气系数
-	int B_O2;
-	int Cn_O2;	//氧气浓度
-} CalibrationCoefficient;
-
-typedef struct  
-{
-	char SendOrder;                //发送顺序
-	unsigned char cENAutoSendFlag; //自动发送标志位
-	int nWarnVale[3];		       //报警数据
-	CalibrationCoefficient coef;   //标定系数
-} FlashData;
-
-typedef struct  
-{
-	long  lFf;			  //
-	long  lFb;			  //
-	long  CountLong;	//进行计算的值	
-	int   nTemp;								//温度 单位℃
-	int   Result ;							//计算结果
-	float Coefficient[2];				//计算系数
-	int AmbientResult;         //环境压力
-  int   PressResult;          //背压修正
-  int   ReResult ;            //最终结果
-} MyStructTrait5P;
+#include "app_types.h"
 
 extern MyStructTrait5P  mysGasTrait5P[2];
 
@@ -93,4 +65,4 @@ void Get_OutputFlag(unsigned char *flag);
 void Set_OutputFlag(unsigned char flag);
 
 
-#endif /* __SubFun_H */
+#endif /* USER_SUBFUN_H */

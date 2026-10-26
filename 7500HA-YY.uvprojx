@@ -408,6 +408,11 @@
               <FileType>1</FileType>
               <FilePath>.\user\src\ResultCount.c</FilePath>
             </File>
+            <File>
+              <FileName>measurement_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\user\src\measurement_core.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -542,6 +547,16 @@
               <FileName>RXExecute.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\MyDriver\src\RXExecute.c</FilePath>
+            </File>
+            <File>
+              <FileName>protocol_codec.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\MyDriver\src\protocol_codec.c</FilePath>
+            </File>
+            <File>
+              <FileName>persistent_codec.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\MyDriver\src\persistent_codec.c</FilePath>
             </File>
             <File>
               <FileName>iwdg.c</FileName>

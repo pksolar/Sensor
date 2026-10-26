@@ -5,6 +5,8 @@
 #include <hk32f0xxa_tim.h>
 #include "Linearization.h"
 #include "ResultCount.h"
+#include "persistent_layout.h"
+#include "persistent_codec.h"
 
 static unsigned char  tempchar[4];
 
@@ -119,41 +121,32 @@ float FnPressureCalibration(float Pressure)
 void FnRecover(FlashData *flash_data)
 {
     unsigned char i;
-	flash_data->SendOrder = ReadEeprom(130);
+	flash_data->SendOrder = ReadEeprom(PERSISTENT_ADDR_SEND_ORDER);
 	
    for(i=0;i<3;i++)
   	{
-  		tempchar[0]  = ReadEeprom(131+i*2);
-   		tempchar[1]  = ReadEeprom(132+i*2);
+		tempchar[0]  = ReadEeprom(PERSISTENT_ADDR_WARN_VALUES + i * 2);
+		tempchar[1]  = ReadEeprom(PERSISTENT_ADDR_WARN_VALUES + i * 2 + 1);
 		flash_data->nWarnVale[i] = tempchar[1]*256+tempchar[0];
    	} 
-//报警值设置   		
-   	if((flash_data->nWarnVale[0] > 999)||(flash_data->nWarnVale[0] < 0))
-   	{
-	   	flash_data->nWarnVale[0] = 700;		//报警值0
-		}	
-   	if((flash_data->nWarnVale[1] > 999)||(flash_data->nWarnVale[1] < 0))
-   	{
-	   	flash_data->nWarnVale[1] = 400;		//报警值1
-		}
+	for (i = 0; i < 3; i++)
+	{
+		flash_data->nWarnVale[i] = Persistent_NormalizeWarning(
+			i, flash_data->nWarnVale[i]);
+	}
 		
-   	if((flash_data->nWarnVale[2] > 999)||(flash_data->nWarnVale[2] < 0))
-   	{
-	   	flash_data->nWarnVale[2] = 500;
-		}
-		
-	 flash_data->cENAutoSendFlag = ReadEeprom(139);	// ENAutoSendFlag 
+	flash_data->cENAutoSendFlag = ReadEeprom(PERSISTENT_ADDR_AUTO_SEND);	// ENAutoSendFlag
 		
 
-	tempchar[0]  = ReadEeprom(140+0*2);
-	tempchar[1]  = ReadEeprom(141+0*2);
+	tempchar[0]  = ReadEeprom(PERSISTENT_ADDR_O2_K);
+	tempchar[1]  = ReadEeprom(PERSISTENT_ADDR_O2_K + 1);
     flash_data->coef.K_O2 = tempchar[1]*256+tempchar[0];
 
-	tempchar[0]  = ReadEeprom(142+0*2);
-	tempchar[1]  = ReadEeprom(143+0*2);
+	tempchar[0]  = ReadEeprom(PERSISTENT_ADDR_O2_B);
+	tempchar[1]  = ReadEeprom(PERSISTENT_ADDR_O2_B + 1);
     flash_data->coef.B_O2 = tempchar[1]*256+tempchar[0];
 		
-	if((flash_data->coef.K_O2 > 2000)||(flash_data->coef.K_O2 < 0))	//默认系数
+	if(Persistent_IsO2CalibrationInvalid(flash_data->coef.K_O2))
 	{
 		flash_data->coef.K_O2 =  1142;			//1.142
 		flash_data->coef.B_O2 = -3417;			//34.17   0.1% 是实际氧气浓度*10倍
@@ -737,6 +730,6 @@ void AotuSetSendOrder(char *INcSendOrder, int InTempGas)
 	
 //=======存储========
 	ReadFlashAll();
-	WriteEeprom(130, *INcSendOrder);	
+	WriteEeprom(PERSISTENT_ADDR_SEND_ORDER, *INcSendOrder);
 	WriteFlashAll();		
 }
