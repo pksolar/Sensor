@@ -1,0 +1,48 @@
+# dot files
+/.vscode/
+/.settings/
+/.eide/log/
+/.eide.usr.ctx.json
+/.VSCodeCounter/
+
+# project out（去掉前置/，任意子目录匹配）
+build/
+bin/
+obj/
+out/
+Objects/
+Listings/
+
+# eide template
+*.ept
+*.eide-template
+
+# firmware 确认这里只有编译产物！
+Firmware/App/
+
+#Scripts
+Scripts/build/
+Scripts/dist/
+Scripts/*.spec
+
+# Keil / EIDE compile file
+*.uvopt
+*.uvoptx
+*.uvgui.*
+*.axf
+*.elf
+*.hex
+*.bin
+*.map
+*.o
+*.obj
+*.lst
+*.crf
+*.d
+*.uvprjx
+*.map
+*.lst
+
+# OS cache
+Thumbs.db
+.DS_Store
