@@ -1,6 +1,6 @@
 # 行为保持型重构计划
 
-最后更新：2026-10-26。状态：软件侧可执行项已完成；ARMCC 5 验收受本机工具链限制。
+最后更新：2026-11-03。状态：软件侧可执行项已完成；ARMCC 5 验收受本机工具链限制。
 
 ## 阶段 0：安全基线 — DONE
 
@@ -68,3 +68,10 @@
 3. `powershell -ExecutionPolicy Bypass -File tools/refactor/check_contracts.ps1`
 4. `powershell -ExecutionPolicy Bypass -File tools/refactor/check_armclang_syntax.ps1`
 5. `D:\software\keil\UV4\UV4.exe -r D:\project\7500HA-YY\7500HA-YY.uvprojx -j0 -o <log>`
+
+## 附加分析：氧浓度离线模型 — DONE
+
+- 从 `MyDriver/src/Linearization.c` 和 `user/src/ResultCount.c` 提取温度、`Ff + Fb` 到氧浓度的生产公式，仅实现氧浓度，不包含流量。
+- 新增 `tools/oxygen_calibration_model.py`，按 ARMCC `float`、`+0.5` 转换和 0～120% 限幅复现单点计算。
+- 新增 `docs/oxygen_calibration_validation_10_sensors.md`，记录 10 个传感器在 30、45、20 三个 sheet 的复算结果。
+- 本附加分析未修改生产固件；原始 Excel 数据未纳入仓库。
