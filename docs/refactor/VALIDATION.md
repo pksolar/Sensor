@@ -78,3 +78,14 @@
 
 - 命令：`powershell -NoProfile -ExecutionPolicy Bypass -File tools/refactor/run_validation.ps1`
 - 最终结果：61 特征断言、103 静态契约、35 源文件语法检查和 `git diff --check` 全部通过。
+
+## Python 氧浓度模型与 10 传感器验证
+
+- 输入：`标定提取结果.xlsx`；`20260920 7500H（982）V3.08.032架25.xlsx` 的 30、45、20 三个 sheet。
+- 实现：`tools/oxygen_calibration_model.py`；仅计算氧浓度，不执行任何流量计算。
+- 校验：`python -m py_compile` 通过；10 个模型在 5/20/30/45/55℃ 的空气/氧气拟合基线回代通过。
+- 结果：60 个验证点中，严格 ±0.1 个百分点一致 43/60，考虑表格温度显示精度和固件状态窗口后 ±0.5 内 57/60。
+- 氧气点：严格一致 28/30，±0.5 内 30/30。
+- 异常：3 个超出 ±0.5 的点均为空气点；其中仪器 `1798260618010580` 的 30 sheet 表值为 61.3%，单点模型为 20.4%，需结合 12 点窗口、启动输出及异常波动共享历史检查。
+- 详细逐点结果：`docs/oxygen_calibration_validation_10_sensors.md`。
+- 等级：`HOST_VERIFIED`、`STATICALLY_REVIEWED`；真实设备历史序列复现为 `HARDWARE_VALIDATION_PENDING`。
